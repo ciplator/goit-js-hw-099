@@ -1,78 +1,39 @@
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
+import { Notify } from "notiflix/build/notiflix-notify-aio";
 
-// Функція для форматування числа з переднім нулем, якщо число менше 10
-function addLeadingZero(value) {
-  return value < 10 ? `0${value}` : value;
-}
+const refs = {
+  btnTimerStart: document.querySelector("[data-start]"),
+  timerFieldDays: document.querySelector("[data-days]"),
+  timerFielHours: document.querySelector("[data-hours]"),
+  timerFieldMinutes: document.querySelector("[data-minutes]"),
+  timerFieldSeconds: document.querySelector("[data-seconds]"),
+};
 
-// Функція для відображення часу на інтерфейсі
-function updateTimerDisplay(days, hours, minutes, seconds) {
-  const daysElement = document.querySelector('[data-days]');
-  const hoursElement = document.querySelector('[data-hours]');
-  const minutesElement = document.querySelector('[data-minutes]');
-  const secondsElement = document.querySelector('[data-seconds]');
+refs.btnTimerStart.disabled = true;
+let timerId = null;
 
-  daysElement.textContent = addLeadingZero(days);
-  hoursElement.textContent = addLeadingZero(hours);
-  minutesElement.textContent = addLeadingZero(minutes);
-  secondsElement.textContent = addLeadingZero(seconds);
-}
-
-// Функція для обчислення різниці між поточною датою і обраною датою
-function calculateTimeDifference(selectedDate) {
-  const currentDate = new Date();
-  const timeDifference = selectedDate - currentDate;
-
-  if (timeDifference < 0) {
-    // Вибрана дата в минулому, відобразити повідомлення і заблокувати кнопку "Start"
-    alert("Please choose a date in the future");
-    return null;
-  }
-
-  return timeDifference;
-}
-
-// Функція для початку відліку
-function startCountdown(selectedDate) {
-  const timerInterval = setInterval(() => {
-    const timeDifference = calculateTimeDifference(selectedDate);
-
-    if (timeDifference === null || timeDifference <= 0) {
-      clearInterval(timerInterval);
-      document.querySelector('[data-start]').disabled = true;
-      return;
-    }
-
-    const { days, hours, minutes, seconds } = convertMs(timeDifference);
-    updateTimerDisplay(days, hours, minutes, seconds);
-  }, 1000);
-}
-
-// Опції для flatpickr
 const options = {
   enableTime: true,
   time_24hr: true,
   defaultDate: new Date(),
   minuteIncrement: 1,
-  onClose: function (selectedDates) {
-    const selectedDate = selectedDates[0];
 
-    if (selectedDate) {
-      const timeDifference = calculateTimeDifference(selectedDate);
+  onClose(selectedDates) {
+    const currentDate = new Date();
 
-      if (timeDifference !== null && timeDifference > 0) {
-        document.querySelector('[data-start]').disabled = false;
-        startCountdown(selectedDate);
-      }
+    if (selectedDates[0] - currentDate > 0) {
+      refs.btnTimerStart.disabled = false;
+    } else {
+      refs.btnTimerStart.disabled = true;
+      Notify.failure("Укажите время в будущем", {
+        timeout: 1500,
+        width: "400px",
+      });
     }
   },
 };
 
-// Ініціалізація flatpickr
-flatpickr('#datetime-picker', options);
-
-// Функція для конвертації мілісекунд у дні, години, хвилини і секунди
 function convertMs(ms) {
   const second = 1000;
   const minute = second * 60;
@@ -81,8 +42,39 @@ function convertMs(ms) {
 
   const days = Math.floor(ms / day);
   const hours = Math.floor((ms % day) / hour);
-  const minutes = Math.floor((ms % hour) / minute);
-  const seconds = Math.floor((ms % minute) / second);
+  const minutes = Math.floor(((ms % day) % hour) / minute);
+  const seconds = Math.floor((((ms % day) % hour) % minute) / second);
 
   return { days, hours, minutes, seconds };
 }
+
+function addLeadingZero(value) {
+  return String(value).padStart(2, 0);
+}
+
+function onTimerStart() {
+  const selectedDate = fp.selectedDates[0];
+
+  timerId = setInterval(() => {
+    const startTime = new Date();
+    const countdown = selectedDate - startTime;
+    refs.btnTimerStart.disabled = true;
+
+    if (countdown < 0) {
+      clearInterval(timerId);
+      return;
+    }
+    updateTimerFace(convertMs(countdown));
+  }, 1_000);
+}
+
+function updateTimerFace({ days, hours, minutes, seconds }) {
+  refs.timerFieldDays.textContent = addLeadingZero(days);
+  refs.timerFielHours.textContent = addLeadingZero(hours);
+  refs.timerFieldMinutes.textContent = addLeadingZero(minutes);
+  refs.timerFieldSeconds.textContent = addLeadingZero(seconds);
+}
+
+const fp = flatpickr("#datetime-picker", options);
+
+refs.btnTimerStart.addEventListener("click", onTimerStart);
